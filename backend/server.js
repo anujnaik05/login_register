@@ -1,29 +1,15 @@
+require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const eventRoutes = require('./routes/events');
+const authRoutes = require('./routes/auth');
+const db = require('./config/db');
+const app = require('./app');
+const adminRoutes = require('./routes/admin');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: 'anuj1234',
-  database: 'climate_db'
-});
-
-db.connect((err) => {
-  if (err) {
-    console.error('Database connection failed:', err.message);
-    console.error('Error code:', err.code);
-    console.error('Error state:', err.sqlState);
-  } else {
-    console.log('Connected to database successfully');
-  }
-});
+const PORT = process.env.PORT || 5000;
 
 // Add this after db.connect()
 db.query('SELECT 1', (err, results) => {
@@ -102,10 +88,15 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Update the token payload to match what auth middleware expects
     const token = jwt.sign(
-      { userId: user.id, isAdmin: user.is_admin },
-      JWT_SECRET,
-      { expiresIn: '1h' }
+      { 
+        id: user.id,
+        username: user.username,
+        isAdmin: user.is_admin 
+      },
+      process.env.JWT_SECRET || 'aaaavj',
+      { expiresIn: '24h' }
     );
 
     res.json({
@@ -120,7 +111,11 @@ app.post('/login', async (req, res) => {
   });
 });
 
-const PORT = 5000;
+// Routes
+app.use('/api/events', eventRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 }); 

@@ -20,17 +20,24 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/login', formData);
+      const response = await axios.post('/api/auth/login', formData);
+      
+      // Store token and user data
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       
+      // Log the user data for debugging
+      console.log('Login response:', response.data);
+      
+      // Check isAdmin status and redirect accordingly
       if (response.data.user.isAdmin) {
         navigate('/admin-dashboard');
       } else {
         navigate('/user-dashboard');
       }
     } catch (error) {
-      setError(error.response?.data?.error || 'Login failed');
+      console.error('Login error:', error);
+      setError(error.response?.data?.message || 'Login failed');
     }
   };
 

@@ -1,0 +1,9 @@
+-- -- Update sample images to use actual placeholder images
+-- UPDATE redemption_items 
+-- SET image_url = CASE category
+--   WHEN 'merchandise' THEN 'https://via.placeholder.com/300x200?text=Eco+Merchandise'
+--   WHEN 'vouchers' THEN 'https://via.placeholder.com/300x200?text=Eco+Voucher'
+--   WHEN 'experiences' THEN 'https://via.placeholder.com/300x200?text=Eco+Experience'
+--   WHEN 'donations' THEN 'https://via.placeholder.com/300x200?text=Eco+Donation'
+-- END
+-- WHERE image_url LIKE 'https://example.com%'; 

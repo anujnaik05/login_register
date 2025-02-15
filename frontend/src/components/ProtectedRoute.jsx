@@ -1,10 +1,14 @@
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 
-const ProtectedRoute = ({ children, requireAdmin }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  if (!token || !user) {
+  // Log for debugging
+  console.log('Protected Route Check:', { token, user, requireAdmin });
+
+  if (!token) {
     return <Navigate to="/login" />;
   }
 

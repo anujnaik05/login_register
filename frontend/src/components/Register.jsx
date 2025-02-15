@@ -23,18 +23,11 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const dataToSend = {
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-        adminCode: formData.adminCode
-      };
-      
-      // Register the user
-      await axios.post('http://localhost:5000/register', dataToSend);
+      // Register the user with admin code if provided
+      const response = await axios.post('/api/auth/register', formData);
       
       // If registration is successful, immediately login
-      const loginResponse = await axios.post('http://localhost:5000/login', {
+      const loginResponse = await axios.post('/api/auth/login', {
         email: formData.email,
         password: formData.password
       });
@@ -43,14 +36,14 @@ const Register = () => {
       localStorage.setItem('token', loginResponse.data.token);
       localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
 
-      // Redirect based on user type
+      // Redirect based on admin status
       if (loginResponse.data.user.isAdmin) {
         navigate('/admin-dashboard');
       } else {
-        navigate('/login');
+        navigate('/user-dashboard');
       }
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed');
+      setError(error.response?.data?.message || 'Registration failed');
     }
   };
 

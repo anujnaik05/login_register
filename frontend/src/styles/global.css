@@ -1,0 +1,242 @@
+/* Custom Properties */
+:root {
+  --color-forest: #2d6a4f;
+  --color-leaf: #40916c;
+  --color-moss: #52b788;
+  --color-spring: #74c69d;
+  --color-mint: #95d5b2;
+  --color-earth: #34332d;
+  --color-soil: #5a4d41;
+  --color-sand: #b8a088;
+}
+
+/* Base Styles */
+body {
+  background-color: #f8faf8;
+  color: var(--color-earth);
+  min-height: 100vh;
+}
+
+/* Sustainable Cards */
+.eco-card {
+  @apply bg-white rounded-lg shadow-md;
+}
+
+/* Nature-inspired Buttons */
+.eco-button {
+  @apply px-4 py-2 rounded-lg font-medium;
+}
+
+.eco-button-primary {
+  @apply eco-button bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400;
+}
+
+.eco-button-secondary {
+  @apply eco-button bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-100;
+}
+
+/* Navigation Bar */
+.nav-sustainable {
+  background: linear-gradient(to right, var(--color-forest), var(--color-leaf));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 10;
+}
+
+/* Category Pills */
+.category-pill {
+  @apply px-4 py-2 rounded-full transition-all duration-300;
+  background: rgba(82, 183, 136, 0.1);
+  border: 1px solid var(--color-moss);
+  color: var(--color-forest);
+}
+
+.category-pill.active {
+  background: var(--color-forest);
+  color: white;
+}
+
+/* Points Display */
+.points-display {
+  @apply rounded-lg px-4 py-2;
+  background: linear-gradient(135deg, var(--color-moss), var(--color-spring));
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Achievement Cards */
+.achievement-card {
+  @apply rounded-lg p-4;
+  background: linear-gradient(135deg, #ffffff, #f8faf8);
+  border: 1px solid var(--color-mint);
+}
+
+/* Progress Bars */
+.eco-progress {
+  @apply rounded-full overflow-hidden;
+  background: rgba(82, 183, 136, 0.1);
+  height: 8px;
+}
+
+.eco-progress-bar {
+  background: linear-gradient(to right, var(--color-forest), var(--color-leaf));
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Section Headers */
+.eco-header {
+  @apply text-2xl font-semibold mb-6;
+  color: var(--color-forest);
+  border-bottom: 2px solid var(--color-mint);
+  padding-bottom: 0.5rem;
+}
+
+/* Grid Layouts */
+.eco-grid {
+  @apply grid gap-6;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+/* Hover Effects */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(45, 106, 79, 0.15);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(82, 183, 136, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-moss);
+  border-radius: 4px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Modal Styling */
+.eco-modal {
+  @apply fixed inset-0 flex items-center justify-center z-50;
+  background: rgba(45, 106, 79, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  @apply eco-card p-6 max-w-md w-full mx-4;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Form Elements */
+.eco-input {
+  @apply rounded-lg border-gray-300 w-full px-4 py-2;
+  border: 1px solid var(--color-mint);
+  transition: all 0.3s ease;
+}
+
+.eco-input:focus {
+  border-color: var(--color-forest);
+  box-shadow: 0 0 0 2px rgba(45, 106, 79, 0.2);
+  outline: none;
+}
+
+/* Status Badges */
+.eco-badge {
+  @apply px-2 py-1 rounded-full text-sm;
+  background: var(--color-mint);
+  color: var(--color-forest);
+}
+
+/* Loading States */
+.eco-loading {
+  @apply animate-pulse rounded-lg;
+  background: linear-gradient(
+    90deg,
+    rgba(82, 183, 136, 0.1),
+    rgba(82, 183, 136, 0.2),
+    rgba(82, 183, 136, 0.1)
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Page layout */
+.page-container {
+  @apply min-h-screen bg-gray-50;
+}
+
+.content-container {
+  @apply container mx-auto px-4 py-8;
+}
+
+/* Earth-themed Background */
+.earth-bg {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7)),
+              url('/images/earth-pattern.svg');
+  background-size: cover;
+  position: relative;
+  overflow: hidden;
+}
+
+.earth-bg::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 20%, var(--color-spring) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, var(--color-forest) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, var(--color-leaf) 0%, transparent 50%);
+  opacity: 0.1;
+  z-index: 0;
+}
+
+/* Add floating elements animation */
+.floating {
+  animation: floating 6s ease-in-out infinite;
+}
+
+@keyframes floating {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Add nature-inspired decorative elements */
+.leaf-pattern {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/images/leaf-pattern.svg');
+  background-size: 400px;
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+} 
