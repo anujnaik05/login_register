@@ -37,9 +37,9 @@ router.put('/profile', auth, async (req, res) => {
 // Get user points
 router.get('/points', auth, (req, res) => {
   const sql = `
-    SELECT COALESCE(SUM(points), 0) as points 
-    FROM user_points 
-    WHERE user_id = ?
+    SELECT points 
+    FROM users 
+    WHERE id = ?
   `;
   
   db.query(sql, [req.user.id], (err, results) => {
@@ -48,25 +48,9 @@ router.get('/points', auth, (req, res) => {
       return res.status(500).json({ message: 'Error fetching points' });
     }
     
-    // Return 0 if no points found
+    // Return points from users table
     const points = results[0]?.points || 0;
     res.json({ points });
-  });
-});
-
-// Add test points (for testing)
-router.post('/add-test-points', auth, (req, res) => {
-  const sql = `
-    INSERT INTO user_points (user_id, points, action_type, description)
-    VALUES (?, 1000, 'earned', 'Initial test points')
-  `;
-  
-  db.query(sql, [req.user.id], (err, result) => {
-    if (err) {
-      console.error('Error adding test points:', err);
-      return res.status(500).json({ message: 'Error adding points' });
-    }
-    res.json({ message: 'Test points added successfully', points: 1000 });
   });
 });
 

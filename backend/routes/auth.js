@@ -11,53 +11,40 @@ router.post('/register', async (req, res) => {
     const { username, email, password, adminCode } = req.body;
 
     // Check if user already exists
-    const checkUser = 'SELECT * FROM users WHERE email = ? OR username = ?';
-    db.query(checkUser, [email, username], async (err, results) => {
-      if (err) {
-        console.error('Database error:', err);
-        return res.status(500).json({ message: 'Error checking user existence' });
+    const [existingUsers] = await db.promise().query(
+      'SELECT * FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (existingUsers.length > 0) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Check if admin code is provided and valid
+    const isAdmin = adminCode === process.env.ADMIN_SECRET_CODE;
+
+    // Insert new user with 1000 points
+    const [result] = await db.promise().query(
+      'INSERT INTO users (username, email, password, isAdmin, points) VALUES (?, ?, ?, ?, 1000)',
+      [username, email, hashedPassword, isAdmin]
+    );
+
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      user: {
+        id: result.insertId,
+        username,
+        email,
+        isAdmin,
+        points: 1000
       }
-
-      if (results.length > 0) {
-        return res.status(400).json({ message: 'User already exists' });
-      }
-
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      // Set isAdmin based on admin code
-      const isAdmin = adminCode === '1234' ? 1 : 0;
-
-      // Create new user with isAdmin field
-      const sql = 'INSERT INTO users (username, email, password, isAdmin) VALUES (?, ?, ?, ?)';
-      db.query(sql, [username, email, hashedPassword, isAdmin], (err, result) => {
-        if (err) {
-          console.error('Error creating user:', err);
-          return res.status(500).json({ message: 'Error creating user' });
-        }
-
-        // Create token
-        const token = jwt.sign(
-          { id: result.insertId, username, isAdmin: Boolean(isAdmin) },
-          process.env.JWT_SECRET,
-          { expiresIn: '24h' }
-        );
-
-        res.status(201).json({
-          token,
-          user: {
-            id: result.insertId,
-            username,
-            email,
-            isAdmin: Boolean(isAdmin)
-          }
-        });
-      });
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Error registering user' });
   }
 });
 
@@ -66,8 +53,8 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user with isAdmin field
-    const sql = 'SELECT id, username, email, password, isAdmin FROM users WHERE email = ?';
+    // Find user with points field
+    const sql = 'SELECT id, username, email, password, isAdmin, points FROM users WHERE email = ?';
     db.query(sql, [email], async (err, results) => {
       if (err) {
         console.error('Database error:', err);
@@ -86,7 +73,7 @@ router.post('/login', async (req, res) => {
         return res.status(400).json({ message: 'Invalid credentials' });
       }
 
-      // Create token with isAdmin claim
+      // Create token
       const token = jwt.sign(
         { 
           id: user.id, 
@@ -97,22 +84,15 @@ router.post('/login', async (req, res) => {
         { expiresIn: '24h' }
       );
 
-      // Log the user details for debugging
-      console.log('Logged in user:', {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        isAdmin: Boolean(user.isAdmin)
-      });
-
-      // Send response with user data including isAdmin
+      // Send response with user data including points
       res.json({
         token,
         user: {
           id: user.id,
           username: user.username,
           email: user.email,
-          isAdmin: Boolean(user.isAdmin)
+          isAdmin: Boolean(user.isAdmin),
+          points: user.points
         }
       });
     });

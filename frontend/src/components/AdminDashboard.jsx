@@ -9,7 +9,7 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('events');
 
   useEffect(() => {
     if (activeTab === 'events') {
@@ -22,15 +22,23 @@ const AdminDashboard = () => {
   const fetchEventRegistrations = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/event-registrations', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setEventRegistrations(response.data);
       setError('');
+      
+      console.log('Fetching event registrations...'); // Debug log
+      const response = await axios.get('http://localhost:5000/api/admin/event-registrations');
+      
+      console.log('Response received:', response.data); // Debug log
+
+      if (Array.isArray(response.data)) {
+        setEventRegistrations(response.data);
+        setError('');
+      } else {
+        console.error('Invalid response format:', response.data);
+        throw new Error('Invalid data format received from server');
+      }
     } catch (err) {
-      console.error('Error fetching registrations:', err);
-      setError('Failed to load event registrations');
+      console.error('Error details:', err);
+      setError('Error fetching event registrations. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -39,12 +47,7 @@ const AdminDashboard = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      console.log('Users response:', response.data); // Debug log
+      const response = await axios.get('http://localhost:5000/api/admin/users');
       
       if (response.data && Array.isArray(response.data.users)) {
         setUsers(response.data.users);
@@ -54,7 +57,7 @@ const AdminDashboard = () => {
       }
     } catch (err) {
       console.error('Error fetching users:', err);
-      setError(err.response?.data?.message || 'Failed to load users');
+      setError('Error fetching users. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -78,6 +81,9 @@ const AdminDashboard = () => {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Points
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created At
@@ -106,6 +112,9 @@ const AdminDashboard = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-green-600 font-medium">{user.points || 0}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     {format(new Date(user.created_at), 'PPP')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -123,62 +132,80 @@ const AdminDashboard = () => {
   const EventRegistrationsTable = () => (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-semibold mb-6">Event Registrations</h2>
-      {eventRegistrations.length === 0 ? (
-        <div className="text-gray-500 text-center">No registrations found</div>
+      {loading ? (
+        <div className="flex justify-center items-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      ) : eventRegistrations.length === 0 ? (
+        <div className="text-gray-500 text-center py-8">No events found</div>
       ) : (
-        eventRegistrations.map(({ event, registrations }) => (
-          <div key={event.id} className="mb-8">
-            <h3 className="text-xl font-semibold mb-4">
-              {event.title} - {format(new Date(event.date), 'PPP')}
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Registration Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {registrations.map((user) => (
-                    <tr key={user.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {user.full_name || user.username}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {user.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {format(new Date(user.registration_date), 'PPP')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          user.status === 'confirmed'
-                            ? 'bg-green-100 text-green-800'
-                            : user.status === 'cancelled'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {user.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="space-y-8">
+          {eventRegistrations.map(({ event, registrations }) => (
+            <div key={event.id} className="border rounded-lg overflow-hidden">
+              <div className="bg-gray-50 p-4 border-b">
+                <h3 className="text-xl font-semibold">{event.title}</h3>
+                <div className="mt-2 text-sm text-gray-600">
+                  <p>Date: {format(new Date(event.date), 'PPP')}</p>
+                  <p>Location: {event.location}</p>
+                  <p>Status: <span className={`capitalize ${
+                    event.status === 'upcoming' ? 'text-green-600' :
+                    event.status === 'completed' ? 'text-blue-600' : 'text-gray-600'
+                  }`}>{event.status}</span></p>
+                </div>
+              </div>
+              
+              {registrations.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {registrations.map((registration) => (
+                        <tr key={registration.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {registration.username}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">{registration.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500">
+                              {format(new Date(registration.registrationDate), 'PPp')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              registration.status === 'confirmed' 
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {registration.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 text-gray-500 text-center">No registrations for this event</div>
+              )}
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );
@@ -211,8 +238,8 @@ const AdminDashboard = () => {
             onClick={() => setActiveTab('users')}
             className={`px-4 py-2 rounded ${
               activeTab === 'users'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-200 text-gray-700'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
             Users
@@ -221,8 +248,8 @@ const AdminDashboard = () => {
             onClick={() => setActiveTab('events')}
             className={`px-4 py-2 rounded ${
               activeTab === 'events'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-200 text-gray-700'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
             Event Registrations

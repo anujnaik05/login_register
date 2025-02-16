@@ -1,68 +1,83 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const auth = require('../middleware/auth');
-const adminAuth = require('../middleware/adminAuth');
+const cors = require('cors');
+
+// Enable CORS for all routes
+router.use(cors());
 
 // Get all event registrations with user details
-router.get('/event-registrations', auth, adminAuth, async (req, res) => {
+router.get('/event-registrations', async (req, res) => {
   try {
     const sql = `
       SELECT 
         e.id as event_id,
         e.title as event_title,
+        e.description as event_description,
         e.date as event_date,
-        u.id as user_id,
-        u.username,
-        u.email,
-        u.full_name,
+        e.location as event_location,
+        e.status as event_status,
+        e.type as event_type,
+        e.capacity as event_capacity,
+        er.id as registration_id,
+        er.user_id,
         er.registration_date,
-        er.status
-      FROM event_registrations er
-      JOIN events e ON er.event_id = e.id
-      JOIN users u ON er.user_id = u.id
+        er.status as registration_status,
+        u.username,
+        u.email
+      FROM events e
+      LEFT JOIN event_registrations er ON e.id = er.event_id
+      LEFT JOIN users u ON er.user_id = u.id
       ORDER BY e.date DESC, er.registration_date DESC
     `;
 
     const [results] = await db.promise().query(sql);
+    
+    if (!results || results.length === 0) {
+      return res.json([]);
+    }
 
     // Group registrations by event
-    const eventRegistrations = results.reduce((acc, reg) => {
-      const event = {
-        id: reg.event_id,
-        title: reg.event_title,
-        date: reg.event_date,
-      };
-
-      const user = {
-        id: reg.user_id,
-        username: reg.username,
-        email: reg.email,
-        full_name: reg.full_name,
-        registration_date: reg.registration_date,
-        status: reg.status
-      };
-
-      if (!acc[reg.event_id]) {
-        acc[reg.event_id] = {
-          event,
+    const eventRegistrations = results.reduce((acc, row) => {
+      if (!acc[row.event_id]) {
+        acc[row.event_id] = {
+          event: {
+            id: row.event_id,
+            title: row.event_title,
+            description: row.event_description,
+            date: row.event_date,
+            location: row.event_location,
+            status: row.event_status,
+            type: row.event_type,
+            capacity: row.event_capacity
+          },
           registrations: []
         };
       }
 
-      acc[reg.event_id].registrations.push(user);
+      if (row.registration_id) {
+        acc[row.event_id].registrations.push({
+          id: row.registration_id,
+          userId: row.user_id,
+          username: row.username,
+          email: row.email,
+          registrationDate: row.registration_date,
+          status: row.registration_status
+        });
+      }
+
       return acc;
     }, {});
 
     res.json(Object.values(eventRegistrations));
   } catch (error) {
-    console.error('Error fetching event registrations:', error);
+    console.error('Database error:', error);
     res.status(500).json({ message: 'Error fetching event registrations' });
   }
 });
 
 // Get user statistics
-router.get('/stats', auth, adminAuth, async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const [userStats] = await db.promise().query(`
       SELECT 
@@ -99,7 +114,7 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
 });
 
 // Get all users
-router.get('/users', auth, adminAuth, async (req, res) => {
+router.get('/users', async (req, res) => {
   try {
     const sql = `
       SELECT 
@@ -108,6 +123,7 @@ router.get('/users', auth, adminAuth, async (req, res) => {
         u.email,
         u.isAdmin,
         u.created_at,
+        u.points,
         COUNT(er.id) as event_count
       FROM users u
       LEFT JOIN event_registrations er ON u.id = er.user_id
@@ -117,13 +133,13 @@ router.get('/users', auth, adminAuth, async (req, res) => {
 
     const [users] = await db.promise().query(sql);
 
-    // Format the response
     const formattedUsers = users.map(user => ({
       id: user.id,
       username: user.username,
       email: user.email,
       isAdmin: Boolean(user.isAdmin),
       created_at: user.created_at,
+      points: user.points || 0,
       event_count: user.event_count
     }));
 
@@ -138,7 +154,7 @@ router.get('/users', auth, adminAuth, async (req, res) => {
 });
 
 // Update user status
-router.patch('/users/:userId', auth, adminAuth, async (req, res) => {
+router.patch('/users/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const { isAdmin } = req.body;

@@ -48,32 +48,47 @@ router.get('/items', auth, async (req, res) => {
 // Redeem an item
 router.post('/redeem', auth, async (req, res) => {
   const { itemId, shippingAddress } = req.body;
+  
+  if (!shippingAddress) {
+    return res.status(400).json({ message: 'Shipping address is required' });
+  }
+
   const userId = req.user.id;
-  const connection = await db.promise();
+  let connection;
 
   try {
+    connection = await db.promise();
     await connection.beginTransaction();
 
-    // Get item details and check availability with stock
-    const [items] = await connection.query(
+    // First, get the user's current points
+    const [userRows] = await connection.query(
+      'SELECT points FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (!userRows || userRows.length === 0) {
+      throw new Error('User not found');
+    }
+
+    const userPoints = userRows[0].points;
+    console.log('Current user points:', userPoints);
+
+    // Then get the item details
+    const [itemRows] = await connection.query(
       'SELECT * FROM redemption_items WHERE id = ? AND status = "available" AND stock > 0',
       [itemId]
     );
-    
-    const item = items[0];
-    if (!item) {
+
+    if (!itemRows || itemRows.length === 0) {
       throw new Error('Item not available or out of stock');
     }
 
-    // Check user points
-    const [points] = await connection.query(
-      'SELECT COALESCE(SUM(points), 0) as total FROM user_points WHERE user_id = ?',
-      [userId]
-    );
-    
-    const userPoints = points[0];
-    if (userPoints.total < item.points_required) {
-      throw new Error(`Insufficient points. You need ${item.points_required} points but have ${userPoints.total}`);
+    const item = itemRows[0];
+    console.log('Item points required:', item.points_required);
+
+    // Check if user has enough points
+    if (userPoints < item.points_required) {
+      throw new Error(`Insufficient points. You need ${item.points_required} points but have ${userPoints}`);
     }
 
     // Create redemption record
@@ -82,13 +97,14 @@ router.post('/redeem', auth, async (req, res) => {
       [userId, itemId, item.points_required, shippingAddress]
     );
 
-    // Deduct points
+    // Update user points
+    const newPoints = userPoints - item.points_required;
     await connection.query(
-      'INSERT INTO user_points (user_id, points, action_type, description) VALUES (?, ?, ?, ?)',
-      [userId, -item.points_required, 'redeemed', `Redeemed ${item.name}`]
+      'UPDATE users SET points = ? WHERE id = ?',
+      [newPoints, userId]
     );
 
-    // Update item stock and status if needed
+    // Update item stock
     await connection.query(`
       UPDATE redemption_items 
       SET stock = stock - 1,
@@ -98,12 +114,18 @@ router.post('/redeem', auth, async (req, res) => {
 
     await connection.commit();
     
+    // Send back the updated points in the response
     res.json({ 
       message: 'Item redeemed successfully',
-      remainingPoints: userPoints.total - item.points_required
+      remainingPoints: newPoints,
+      itemName: item.name
     });
+
   } catch (error) {
-    await connection.rollback();
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('Redemption error:', error);
     res.status(400).json({ message: error.message });
   }
 });

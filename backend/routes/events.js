@@ -1,234 +1,177 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const auth = require('../middleware/auth');
-const adminAuth = require('../middleware/adminAuth');
+const cors = require('cors');
+
+// Enable CORS
+router.use(cors());
 
 // Get all events
-router.get('/', auth, (req, res) => {
-  console.log('Fetching events for user:', req.user.id);
-  
-  const sql = `
-    SELECT e.*, u.username as creator_name 
-    FROM events e 
-    LEFT JOIN users u ON e.created_by = u.id
-    ORDER BY e.date DESC
-  `;
-  
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Error fetching events:', err);
-      return res.status(500).json({ message: 'Error fetching events', error: err.message });
-    }
-    console.log('Found events:', results.length);
-    res.json(results);
-  });
-});
-
-// Create new event (admin only)
-router.post('/', auth, adminAuth, (req, res) => {
-  const { title, description, date, location, type, capacity, status } = req.body;
-  const created_by = req.user.id;
-
-  if (!title || !description || !date || !location || !capacity) {
-    return res.status(400).json({ message: 'All required fields must be provided' });
-  }
-
-  const sql = `
-    INSERT INTO events 
-    (title, description, date, location, type, capacity, status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  db.query(
-    sql,
-    [title, description, date, location, type, capacity, status || 'upcoming', created_by],
-    (err, result) => {
-      if (err) {
-        console.error('Database error creating event:', err);
-        return res.status(400).json({ 
-          message: 'Error creating event', 
-          error: err.message 
-        });
-      }
-      
-      // Fetch the created event
-      db.query('SELECT * FROM events WHERE id = ?', [result.insertId], (err, results) => {
-        if (err) {
-          return res.status(500).json({ message: 'Event created but error fetching details' });
-        }
-        res.status(201).json(results[0]);
-      });
-    }
-  );
-});
-
-// Update event (admin only)
-router.put('/:id', auth, adminAuth, (req, res) => {
-  const eventId = req.params.id;
-  const { title, description, date, location, type, capacity, status } = req.body;
-
-  const sql = `
-    UPDATE events 
-    SET title = ?, description = ?, date = ?, location = ?, 
-        type = ?, capacity = ?, status = ?
-    WHERE id = ?
-  `;
-
-  db.query(
-    sql,
-    [title, description, date, location, type, capacity, status, eventId],
-    (err, result) => {
-      if (err) {
-        console.error('Error updating event:', err);
-        return res.status(400).json({ message: 'Error updating event' });
-      }
-
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ message: 'Event not found' });
-      }
-
-      // Fetch the updated event
-      db.query('SELECT * FROM events WHERE id = ?', [eventId], (err, results) => {
-        if (err) {
-          console.error('Error fetching updated event:', err);
-          return res.status(500).json({ message: 'Event updated but error fetching details' });
-        }
-        res.json(results[0]);
-      });
-    }
-  );
-});
-
-// Delete event (admin only)
-router.delete('/:id', auth, adminAuth, (req, res) => {
-  const sql = 'DELETE FROM events WHERE id = ?';
-  
-  db.query(sql, [req.params.id], (err, result) => {
-    if (err) {
-      console.error('Error deleting event:', err);
-      return res.status(500).json({ message: 'Error deleting event' });
-    }
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Event not found' });
-    }
-
-    res.json({ message: 'Event deleted successfully' });
-  });
-});
-
-// Add this at the top of your routes file
-router.get('/test', (req, res) => {
-  res.json({ message: 'Events API is working' });
-});
-
-// Register for an event
-router.post('/register/:eventId', auth, async (req, res) => {
-  const eventId = req.params.eventId;
-  const userId = req.user.id;
-
+router.get('/', async (req, res) => {
   try {
-    // First check if the event exists and its status
-    const checkEventSql = `
+    const sql = `
       SELECT e.*, 
-        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id) as registered_count
+        COUNT(er.id) as registration_count 
       FROM events e 
-      WHERE e.id = ?`;
-
-    db.query(checkEventSql, [eventId], (err, results) => {
-      if (err) {
-        console.error('Error checking event:', err);
-        return res.status(500).json({ message: 'Error checking event availability' });
-      }
-
-      if (results.length === 0) {
-        return res.status(404).json({ message: 'Event not found' });
-      }
-
-      const event = results[0];
-
-      // Check if event is upcoming
-      if (event.status !== 'upcoming') {
-        return res.status(400).json({ message: 'Registration is only available for upcoming events' });
-      }
-      
-      // Check if event is full
-      if (event.registered_count >= event.capacity) {
-        return res.status(400).json({ message: 'Event is already full' });
-      }
-
-      // Check if user is already registered
-      const checkRegistrationSql = 'SELECT * FROM event_registrations WHERE event_id = ? AND user_id = ?';
-      db.query(checkRegistrationSql, [eventId, userId], (err, registrations) => {
-        if (err) {
-          console.error('Error checking registration:', err);
-          return res.status(500).json({ message: 'Error checking registration' });
-        }
-
-        if (registrations.length > 0) {
-          return res.status(400).json({ message: 'You are already registered for this event' });
-        }
-
-        // Register the user
-        const registerSql = 'INSERT INTO event_registrations (event_id, user_id) VALUES (?, ?)';
-        db.query(registerSql, [eventId, userId], (err, result) => {
-          if (err) {
-            console.error('Error registering for event:', err);
-            return res.status(500).json({ message: 'Error registering for event' });
-          }
-
-          res.status(201).json({ 
-            message: 'Successfully registered for event',
-            registration: {
-              id: result.insertId,
-              event_id: eventId,
-              user_id: userId
-            }
-          });
-        });
-      });
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error during registration' });
+      LEFT JOIN event_registrations er ON e.id = er.event_id 
+      GROUP BY e.id 
+      ORDER BY e.date DESC
+    `;
+    
+    const [events] = await db.promise().query(sql);
+    res.json(events);
+  } catch (err) {
+    console.error('Error fetching events:', err);
+    res.status(500).json({ message: 'Error fetching events' });
   }
 });
 
 // Get user's registered events
-router.get('/my-registrations', auth, (req, res) => {
-  const sql = `
-    SELECT e.*, er.registration_date, er.status as registration_status
-    FROM events e
-    JOIN event_registrations er ON e.id = er.event_id
-    WHERE er.user_id = ?
-    ORDER BY e.date DESC`;
+router.get('/my-registrations', async (req, res) => {
+  try {
+    const sql = `
+      SELECT e.*, er.registration_date, er.status as registration_status
+      FROM events e
+      JOIN event_registrations er ON e.id = er.event_id
+      WHERE er.user_id = ?
+      ORDER BY e.date DESC`;
 
-  db.query(sql, [req.user.id], (err, results) => {
-    if (err) {
-      console.error('Error fetching registrations:', err);
-      return res.status(500).json({ message: 'Error fetching registrations' });
-    }
+    const [results] = await db.promise().query(sql, [req.user.id]);
     res.json(results);
-  });
+  } catch (err) {
+    console.error('Error fetching registrations:', err);
+    res.status(500).json({ message: 'Error fetching registrations' });
+  }
+});
+
+// Register for an event
+router.post('/register/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.body.userId; // Get userId from request body instead of token
+
+    // Check if already registered
+    const [existingReg] = await db.promise().query(
+      'SELECT * FROM event_registrations WHERE event_id = ? AND user_id = ?',
+      [eventId, userId]
+    );
+
+    if (existingReg.length > 0) {
+      return res.status(400).json({ message: 'Already registered for this event' });
+    }
+
+    // Check event capacity
+    const [event] = await db.promise().query(
+      'SELECT capacity, (SELECT COUNT(*) FROM event_registrations WHERE event_id = ?) as current_registrations FROM events WHERE id = ?',
+      [eventId, eventId]
+    );
+
+    if (event.length === 0) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (event[0].current_registrations >= event[0].capacity) {
+      return res.status(400).json({ message: 'Event is full' });
+    }
+
+    // Register for event
+    await db.promise().query(
+      'INSERT INTO event_registrations (event_id, user_id, status) VALUES (?, ?, "confirmed")',
+      [eventId, userId]
+    );
+
+    // Award points for registration
+    await db.promise().query(
+      'UPDATE users SET points = points + 10 WHERE id = ?',
+      [userId]
+    );
+
+    res.json({ message: 'Successfully registered for event' });
+  } catch (err) {
+    console.error('Error registering for event:', err);
+    res.status(500).json({ message: 'Error registering for event' });
+  }
 });
 
 // Cancel registration
-router.delete('/register/:eventId', auth, (req, res) => {
-  const sql = 'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?';
-  
-  db.query(sql, [req.params.eventId, req.user.id], (err, result) => {
-    if (err) {
-      console.error('Error cancelling registration:', err);
-      return res.status(500).json({ message: 'Error cancelling registration' });
-    }
-    
+router.delete('/register/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.body.userId; // Get userId from request body instead of token
+
+    const [result] = await db.promise().query(
+      'DELETE FROM event_registrations WHERE event_id = ? AND user_id = ?',
+      [eventId, userId]
+    );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Registration not found' });
     }
-    
+
+    // Deduct points for cancellation
+    await db.promise().query(
+      'UPDATE users SET points = points - 10 WHERE id = ?',
+      [userId]
+    );
+
     res.json({ message: 'Registration cancelled successfully' });
-  });
+  } catch (err) {
+    console.error('Error cancelling registration:', err);
+    res.status(500).json({ message: 'Error cancelling registration' });
+  }
+});
+
+// Create new event
+router.post('/', async (req, res) => {
+  try {
+    const { title, description, date, location, type, capacity, status } = req.body;
+
+    const [result] = await db.promise().query(
+      'INSERT INTO events (title, description, date, location, type, capacity, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title, description, date, location, type, capacity, status]
+    );
+
+    res.status(201).json({
+      message: 'Event created successfully',
+      eventId: result.insertId
+    });
+  } catch (err) {
+    console.error('Error creating event:', err);
+    res.status(500).json({ message: 'Error creating event' });
+  }
+});
+
+// Update event
+router.put('/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { title, description, date, location, type, capacity, status } = req.body;
+
+    await db.promise().query(
+      'UPDATE events SET title = ?, description = ?, date = ?, location = ?, type = ?, capacity = ?, status = ? WHERE id = ?',
+      [title, description, date, location, type, capacity, status, eventId]
+    );
+
+    res.json({ message: 'Event updated successfully' });
+  } catch (err) {
+    console.error('Error updating event:', err);
+    res.status(500).json({ message: 'Error updating event' });
+  }
+});
+
+// Delete event
+router.delete('/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    await db.promise().query('DELETE FROM event_registrations WHERE event_id = ?', [eventId]);
+    await db.promise().query('DELETE FROM events WHERE id = ?', [eventId]);
+
+    res.json({ message: 'Event deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting event:', err);
+    res.status(500).json({ message: 'Error deleting event' });
+  }
 });
 
 module.exports = router; 

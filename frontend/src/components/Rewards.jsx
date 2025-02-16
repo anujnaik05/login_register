@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import ShippingAddressModal from './ShippingAddressModal';
 
 const Rewards = () => {
   const [rewards, setRewards] = useState([]);
+  const [userPoints, setUserPoints] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [success, setSuccess] = useState('');
 
   const fetchRewards = useCallback(async () => {
     try {
@@ -66,6 +71,54 @@ const Rewards = () => {
     };
   }, [fetchRewards]);
 
+  useEffect(() => {
+    fetchUserPoints();
+  }, []);
+
+  const fetchUserPoints = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/users/points', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserPoints(response.data.points);
+    } catch (error) {
+      console.error('Error fetching points:', error);
+    }
+  };
+
+  const handleRedeem = (item) => {
+    if (userPoints < item.points_required) {
+      setError(`Insufficient points. You need ${item.points_required} points but have ${userPoints}`);
+      return;
+    }
+    setSelectedItem(item);
+    setShowModal(true);
+    setError('');
+  };
+
+  const handleRedemptionSubmit = async (shippingAddress) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/redemption/redeem', 
+        {
+          itemId: selectedItem.id,
+          shippingAddress
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      setSuccess('Item redeemed successfully!');
+      setShowModal(false);
+      fetchUserPoints(); // Refresh points
+      fetchRewards(); // Refresh rewards list
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to redeem item');
+    }
+  };
+
   // Group rewards by category using useMemo to prevent unnecessary recalculations
   const groupedRewards = React.useMemo(() => {
     const groups = {};
@@ -112,33 +165,61 @@ const Rewards = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-semibold mb-6">Rewards & Achievements</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {Object.entries(groupedRewards).map(([category, categoryRewards]) => (
-          <div key={category} className="border rounded-lg p-4 bg-gradient-to-br from-green-50 to-blue-50">
-            <h3 className="text-xl font-semibold mb-4 capitalize">{category}</h3>
-            <div className="space-y-3">
-              {categoryRewards.map(reward => (
-                <div 
-                  key={reward.id} 
-                  className="flex items-start p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Your Points: {userPoints}</h2>
+      </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          {success}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {rewards.map((item) => (
+          <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+            <img 
+              src={item.image_url} 
+              alt={item.name}
+              className="w-full h-48 object-cover"
+            />
+            <div className="p-4">
+              <h3 className="text-xl font-semibold mb-2">{item.name}</h3>
+              <p className="text-gray-600 mb-4">{item.description}</p>
+              <div className="flex justify-between items-center">
+                <span className="text-green-600 font-bold">{item.points_required} points</span>
+                <button
+                  onClick={() => handleRedeem(item)}
+                  disabled={userPoints < item.points_required || item.stock === 0}
+                  className={`px-4 py-2 rounded ${
+                    userPoints >= item.points_required && item.stock > 0
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
-                  <div className="flex-grow">
-                    <h4 className="font-medium text-gray-800">{reward.name}</h4>
-                    <p className="text-sm text-gray-600">{reward.description}</p>
-                  </div>
-                  <div className="ml-4 flex items-center">
-                    <span className="text-sm font-semibold text-green-600">
-                      {reward.points_required} pts
-                    </span>
-                  </div>
-                </div>
-              ))}
+                  {item.stock === 0 ? 'Out of Stock' : 'Redeem'}
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
+
+      {showModal && selectedItem && (
+        <ShippingAddressModal
+          onSubmit={handleRedemptionSubmit}
+          onClose={() => setShowModal(false)}
+          itemName={selectedItem.name}
+          pointsRequired={selectedItem.points_required}
+        />
+      )}
     </div>
   );
 };
